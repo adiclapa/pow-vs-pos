@@ -101,29 +101,42 @@ class PowNode:
 
 
     def mine_blocks(self):
+        # MInging process starts
+
         print(f"Node {self.index} type: ", self.node_type)
 
         while self.running_nodes.value > 0:
             with self.lock:
                 block = self.blockchain[-1]
 
+            # Generating random transactions
             transactions = self._generate_transactions(random.randint(1, 10))
+            # Calculating the merkel root hash of the transactions
             merkle_root_hash = self._merkle_root(transactions)
 
             new_block = 64*'F'
             if self.is_byzantine():
                 new_block = sha256(new_block + "NOT TODAY - " + str(random.randint(0, 1000000000)))
             else:
+                # Mining a new block
+                # Generation a random nonce until a valid block is obtained
                 new_block = self._mine(block, merkle_root_hash)
+            if len(self.blockchain) >= 10:
+                break
 
+            # More of a broadcast simulation
+            # The message queue is not used in the implementation
             self._broadcast_block(new_block)
-
+            
+            # Every node votes if the block is valid
+            # For a byzantine node to add a new block the number of byzantine nodes
+            # needs to be at least equal to the number is honest nodes
             if self._vote_block(new_block):
                 with self.lock:
                     self.blockchain.append(new_block)
                     print(f"Node {self.index} mined a new block: {new_block}")
             
-            if self.is_byzantine():
-                sleep(2)
+            # if self.is_byzantine():
+            #     sleep(2)
         
         print(f"Node {self.index}: stopped mining.")

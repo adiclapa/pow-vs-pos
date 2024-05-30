@@ -1,12 +1,12 @@
 import time
 import threading
 from multiprocessing import Process, Manager, Lock
-from pow.pow_node import *
+from pow_node import *
 from utils import *
 
 def main():
     n_nodes = 5
-    byzantine_probability = 0.2
+    byzantine_probability = 0.5
     difficulty = 5
 
     nodes = []
@@ -37,10 +37,16 @@ def main():
     input_thread.start()
 
     while not stop_key.is_set():
+        alive=n_nodes
+        for p in processes:
+            if not p.is_alive():
+                alive-=1
+        if alive == 0:
+            break
         time.sleep(0.1)
 
-    for p in processes:
-        p.join()
+    # for p in processes:
+    #     p.join()
 
     print("Blockchain:")
     for block in list(shared_blockchain):

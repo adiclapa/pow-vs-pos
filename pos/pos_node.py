@@ -159,7 +159,8 @@ class PosNode:
                 self.epoch_barier.wait()
                 if not self.proposed_blocks:
                     return None
-                # Choose the winner based on weighted random choice, leveraging the 'weight' as the chance of selection
+                # Choose the winner based on weighted random choice, leveraging the 'weight' as the chance of selection 
+                # and 'age' as the number of epochs that passed from adding a block in the network
                 stakes=[0]*len(self.nodes)
                 for node in self.nodes:
                     if node.get_age().value <= 0:
@@ -175,11 +176,15 @@ class PosNode:
                 
                 weights = [stake/total_stake for stake in stakes]
                 print(f"Node {self.index} - weights: {weights}")
+
+                # Random chosing a winner 
                 winning_block = random.choices(self.proposed_blocks, weights=weights, k=1)[0]
                 
                 self.winners.append(winning_block)
                 self.epoch_barier.wait()
 
+                # The validator with the most votes wins
+                # else the process is repeated until one wins
                 selection_result = self.most_frequent_items(self.winners)
                 # print(f"Node {self.index} - selection resutl: {selection_result}")
                 if selection_result == None:
@@ -195,6 +200,8 @@ class PosNode:
                 return None
             
         self.epoch_barier.wait()
+
+        # The winner checks the chain and adds its node
         if self.address == winner['validator']:
             print(f"Winner is node {self.index} - block {winner}")
             self.check_chain()

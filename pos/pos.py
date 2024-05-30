@@ -29,7 +29,6 @@ def main():
     init_block["hash"] = sha256(str(init_block))
         
     shared_blockchain.append(init_block)
-    shared_lock = Lock()
 
     running_nodes = manager.Value('i', n_nodes)
     running_nodes_lock = Lock()
@@ -49,12 +48,14 @@ def main():
     for i in range(n_nodes):
         node.set_node_list(nodes)
 
+    # Creating a process for every node
     processes = []
     for node in nodes:
         p = Process(target=node.pos_mine)
         processes.append(p)
         p.start()
 
+    # Tread to wait for the 'q' key to be pressed and stop the app
     stop_key = threading.Event()
     input_thread = threading.Thread(target=check_for_q, args=(stop_key, running_nodes, running_nodes_lock))
     input_thread.daemon = True
