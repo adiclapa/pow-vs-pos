@@ -197,11 +197,11 @@ class PosNode:
         self.epoch_barier.wait()
         if self.address == winner['validator']:
             print(f"Winner is node {self.index} - block {winner}")
+            self.check_chain()
             self.add_new_block(winner)
             self.weight.value = self.weight.value + 1
             self.age.value=0
             print(f"Node {self.index} - weight {self.weight.value} age {self.age.value}")
-            self.check_chain()
         else:
             self.age.value = self.age.value + 1
 
