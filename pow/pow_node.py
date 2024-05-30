@@ -4,7 +4,7 @@ from time import sleep
 from multiprocessing import Queue
 from utils import NodeType, sha256
 
-class PowBlock:
+class PowNode:
     def __init__(self, index, running_nodes, byzantine_probability, difficulty):
         self.index = index
         self.difficulty = difficulty

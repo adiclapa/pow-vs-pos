@@ -1,7 +1,7 @@
 import time
 import threading
 from multiprocessing import Process, Manager, Lock
-from pow_block import *
+from pow.pow_node import *
 from utils import *
 
 def main():
@@ -18,7 +18,7 @@ def main():
     running_nodes_lock = Lock()
 
     for i in range(n_nodes):
-        node = PowBlock(i, running_nodes, byzantine_probability, difficulty)
+        node = PowNode(i, running_nodes, byzantine_probability, difficulty)
         node.set_blockchain(shared_blockchain)
         node.set_proc_lock(shared_lock)
         node.set_node_list(nodes)

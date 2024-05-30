@@ -3,12 +3,12 @@ import threading
 import pprint
 from datetime import datetime
 from multiprocessing import Process, Manager, Lock, Barrier
-from pos_block import PosBlock
+from pos_node import PosNode
 from utils import *
 
 def main():
     n_nodes = 5
-    byzantine_probability = 0.2
+    byzantine_probability = 0.4
     initial_weight = 50
 
     nodes = []
@@ -36,10 +36,11 @@ def main():
     epoch_barrier = Barrier(n_nodes)
 
     for i in range(n_nodes):
-        node = PosBlock(i, running_nodes, byzantine_probability, initial_weight)
+        shared_weight=manager.Value('i', initial_weight)
+        shared_age=manager.Value('i', 1)
+        node = PosNode(i, running_nodes, byzantine_probability, shared_weight, shared_age)
         node.set_blockchain(shared_blockchain)
         node.set_proposed_blocks(proposed_blocks)
-        node.set_proc_lock(shared_lock)
         node.set_node_list(nodes)
         node.set_winners(winners)
         node.set_epoch_barrier(epoch_barrier)

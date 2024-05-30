@@ -4,11 +4,11 @@ import numpy as np
 from time import sleep
 from datetime import datetime
 from hashlib import sha256
-from multiprocessing import Queue
+from multiprocessing import Manager
 from utils import NodeType, sha256
 
-class PosBlock:
-    def __init__(self, index, running_nodes, byzantine_probability, initial_weight):
+class PosNode:
+    def __init__(self, index, running_nodes, byzantine_probability, initial_weight, initial_age):
         """
         Initialize a new PoS block node.
         
@@ -20,8 +20,8 @@ class PosBlock:
         self.index = index
         self.running_nodes = running_nodes
         self.node_type = self._decide_node_type(byzantine_probability)
-        self.weight = initial_weight
-        self.age = 1
+        self.weight =  initial_weight
+        self.age = initial_age
         self.address = sha256(str(index))
 
     def get_address(self):
@@ -83,15 +83,15 @@ class PosBlock:
         :param prev_block: Previous block in the blockchain.
         :return: True if the block is valid, else False.
         """
-        if self.is_byzantine():
-            return True
-
+        result=False
         try:
             _hash = block.pop('hash')
             hash2 = sha256(str(block))
             block['hash'] = _hash
             assert _hash == hash2
         except (KeyError, AssertionError):
+            if self.is_byzantine():
+                return True
             return False
 
         prev_hash = prev_block['hash'] if prev_block else self.blockchain[-1]['hash']
@@ -99,8 +99,15 @@ class PosBlock:
             try:
                 assert prev_hash == block["prev_hash"]
             except AssertionError:
+                if self.is_byzantine():
+                    return True
                 return False
-        return True
+        result=True
+
+        if self.is_byzantine():
+            result = not result
+
+        return result
 
     def add_new_block(self, block):
         """
@@ -111,6 +118,10 @@ class PosBlock:
         if self.validate_block(block):
             self.blockchain.append(block)
 
+    def punish_node(self):
+        self.weight.value=50
+        self.age.value=-10
+
     def most_frequent_items(self,lst):
         if not lst:
             return []
@@ -120,6 +131,23 @@ class PosBlock:
         max_count = max(count.values())
         most_frequent = [item for item, cnt in count.items() if cnt == max_count]
         return most_frequent
+    
+    def check_chain(self):
+        if self.is_byzantine():
+            return
+        if not self.blockchain or len(self.blockchain) == 1:
+            return self.blockchain
+        i = 1
+        while i < len(self.blockchain):
+            if self.blockchain[i]['prev_hash'] != self.blockchain[i - 1]['hash']:
+                for node in self.nodes:
+                    if node.get_address() == self.blockchain[i]['validator']:
+                        print(f"Node {self.index} - validator node {node.get_index()} was punished.")
+                        node.punish_node()
+                        break
+                del self.blockchain[i]  
+            else:
+                i += 1 
 
     def pick_winner(self):
         # pick winner here
@@ -128,32 +156,29 @@ class PosBlock:
         winner=None
         while winner==None:
             try:
-                self.epoch_barier.wait(timeout=15)
+                self.epoch_barier.wait()
                 if not self.proposed_blocks:
                     return None
                 # Choose the winner based on weighted random choice, leveraging the 'weight' as the chance of selection
                 stakes=[0]*len(self.nodes)
                 for node in self.nodes:
-                    stakes[node.get_index()] = node.get_weight()*node.get_age()
+                    if node.get_age().value <= 0:
+                        stakes[node.get_index()] = 0
+                        continue
+                    stakes[node.get_index()] = (node.get_weight().value*node.get_age().value)
                 total_stake=sum(stakes)
                 
-                print(f"Node {self.index} stakes: {stakes}")
-                print(f"Total stake - {self.index}: {total_stake}")
-                print(f"Node {self.index} - proposed blocks len {len(self.proposed_blocks)}")
+                # print(f"Node {self.index} stakes: {stakes}")
+                # print(f"Total stake - {self.index}: {total_stake}")
+                # print(f"Node {self.index} - proposed blocks len {len(self.proposed_blocks)}")
                 
-
-                if self.is_byzantine():
-                    for node in self.nodes:
-                        if node.is_byzantine():
-                            for block in self.proposed_blocks:
-                                if block['validator'] == node.get_address():
-                                    winning_block=block
-                                    break
-                else:
-                    winning_block = random.choices(self.proposed_blocks, weights=[stake/total_stake for stake in stakes], k=1)[0]
+                
+                weights = [stake/total_stake for stake in stakes]
+                print(f"Node {self.index} - weights: {weights}")
+                winning_block = random.choices(self.proposed_blocks, weights=weights, k=1)[0]
                 
                 self.winners.append(winning_block)
-                self.epoch_barier.wait(timeout=15)
+                self.epoch_barier.wait()
 
                 selection_result = self.most_frequent_items(self.winners)
                 # print(f"Node {self.index} - selection resutl: {selection_result}")
@@ -166,16 +191,19 @@ class PosBlock:
                             break
             except Exception as e:
                 print(f"Node {self.index} error: {str(e)}")
-                self.weight=self.weight-5
+                self.weight.value=self.weight.value-5
                 return None
-
+            
+        self.epoch_barier.wait()
         if self.address == winner['validator']:
-            print(f"Winner is {winner} with block index {winning_block['index']}.")
+            print(f"Winner is node {self.index} - block {winner}")
             self.add_new_block(winner)
-            self.weight+=1
-            self.age=0
+            self.weight.value = self.weight.value + 1
+            self.age.value=0
+            print(f"Node {self.index} - weight {self.weight.value} age {self.age.value}")
+            self.check_chain()
         else:
-            self.age+=1
+            self.age.value = self.age.value + 1
 
     def pos_mine(self):
         """
@@ -187,8 +215,11 @@ class PosBlock:
             self.epoch_barier.wait()
             self.winners[:] = [] 
             self.proposed_blocks[:] = [] 
+            self.epoch_barier.wait()
             new_block = self.generate_new_block()
             self.propose_block(new_block)
+            print(f"Node {self.index} - proposed a block.")
+            self.epoch_barier.wait()
             self.pick_winner()
             sleep(1)
 
