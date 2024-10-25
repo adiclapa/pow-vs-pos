@@ -101,7 +101,7 @@ class PowNode:
 
 
     def mine_blocks(self):
-        # MInging process starts
+        # Minging process starts
 
         print(f"Node {self.index} type: ", self.node_type)
 
